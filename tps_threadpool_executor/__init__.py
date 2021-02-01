@@ -129,7 +129,7 @@ class TpsThreadpoolExecutorWithMultiProcess(nb_log.LoggerMixin):
     """ 自动开多进程 + 线程池的方式。 例如你有一台128核的压测机器 对 web服务端进行压测，要求每秒压测1万 tps，单进程远远无法做到，可以方便设置 process_num 为 100"""
 
     def _start_a_threadpool(self, ):
-        ttp = TpsThreadpoolExecutor(max_workers=self._max_works)  # noqa
+        ttp = TpsThreadpoolExecutor(tps=self.tps /self.process_num,max_workers=self._max_works)  # noqa
         while True:
             func, args, kwargs = self.queue.get()  # 结束可以放None，然后这里判断，终止。或者joinable queue
             future = ttp.submit(func, *args, **kwargs)
@@ -154,10 +154,8 @@ class TpsThreadpoolExecutorWithMultiProcess(nb_log.LoggerMixin):
         atexit.register(self._at_exit)
 
     def submit(self, func, *args, **kwargs):
-        with self._lock_for_submit:
-            self.queue.put((func, args, kwargs))
-            if self.time_interval != 0:
-                time.sleep(self.time_interval)
+        self.queue.put((func, args, kwargs))
+
 
     def shutdown(self, wait=True):
         pass
@@ -192,8 +190,7 @@ class DistributedTpsThreadpoolExecutorWithMultiProcess(TpsThreadpoolExecutorWith
             multiprocessing.Process(target=self._start_a_threadpool, daemon=True).start()
         atexit.register(self._at_exit)
 
-    def submit(self, func, *args, **kwargs):
-        self.queue.put((func, args, kwargs))
+
 
 def f1(x):
     time.sleep(0.5)
