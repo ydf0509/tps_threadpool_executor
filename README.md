@@ -25,7 +25,6 @@ DistributedTpsThreadpoolExecutorWithMultiProcess 基于多机的，每台机器�
 ```python
 import json
 import time
-from concurrent.futures._base import Future
 from queue import Queue
 import threading
 from threadpool_executor_shrink_able.sharp_threadpoolexecutor import ThreadPoolExecutorShrinkAble
@@ -33,12 +32,13 @@ import nb_log
 import redis
 import decorator_libs
 import socket
+
 import os
 import multiprocessing
 import atexit
 
-## 4种控频
-from threadpool_executor_shrink_able.sharp_threadpoolexecutor import _WorkItem
+# 4种控频
+
 
 """
 TpsThreadpoolExecutor 基于单进程的当前线程池控频。
@@ -63,15 +63,15 @@ class ThreadPoolExecutorShrinkAbleWithSpecifyQueue(ThreadPoolExecutorShrinkAble)
 
 class TpsThreadpoolExecutor(nb_log.LoggerMixin):
 
-    def __init__(self, tps=0, specify_work_queue=None):
+    def __init__(self, tps=0, max_workers=500, specify_work_queue=None):
         """
         :param tps:   指定线程池每秒运行多少次函数，为0这不限制运行次数
         """
         self.tps = tps
         self.time_interval = 1 / tps if tps != 0 else 0
-        self.pool = ThreadPoolExecutorShrinkAbleWithSpecifyQueue(max_workers=500,
+        self.pool = ThreadPoolExecutorShrinkAbleWithSpecifyQueue(max_workers=max_workers,
                                                                  specify_work_queue=specify_work_queue or Queue(
-                                                                     500))  # 这是使用的智能线程池，所以可以写很大的数字，具体见另一个包的解释。
+                                                                     max_workers))  # 这是使用的智能线程池，所以可以写很大的数字，具体见另一个包的解释。
         self._last_submit_task_time = time.time()
         self._lock_for_count__last_submit_task_time = threading.Lock()
 
@@ -105,7 +105,7 @@ class DistributedTpsThreadpoolExecutor(TpsThreadpoolExecutor, ):
     这个是redis分布式控频线程池，不是基于incr计数的，是基于统计活跃消费者，然后每个线程池平分频率的。
     """
 
-    def __init__(self, tps=0, specify_work_queue=None, pool_identify: str = None,
+    def __init__(self, tps=0, max_workers=500, specify_work_queue=None, pool_identify: str = None,
                  redis_url: str = 'redis://:@127.0.0.1/0'):
         """
         :param tps: 指定线程池每秒运行多少次函数，为0这不限制运行次数
@@ -115,7 +115,7 @@ class DistributedTpsThreadpoolExecutor(TpsThreadpoolExecutor, ):
         if pool_identify is None:
             raise ValueError('设置的参数错误')
         self._pool_identify = pool_identify
-        super(DistributedTpsThreadpoolExecutor, self).__init__(tps=tps, specify_work_queue=specify_work_queue)
+        super(DistributedTpsThreadpoolExecutor, self).__init__(tps=tps, max_workers=max_workers, specify_work_queue=specify_work_queue)
         # self.queue = multiprocessing.Queue(500)
         self.redis_db = redis.from_url(redis_url)
         self.redis_key_pool_identify = f'DistributedTpsThreadpoolExecutor:{pool_identify}'
@@ -151,25 +151,25 @@ class DistributedTpsThreadpoolExecutor(TpsThreadpoolExecutor, ):
 
 
 class TpsThreadpoolExecutorWithMultiProcess(nb_log.LoggerMixin):
-
     """ 自动开多进程 + 线程池的方式。 例如你有一台128核的压测机器 对 web服务端进行压测，要求每秒压测1万 tps，单进程远远无法做到，可以方便设置 process_num 为 100"""
- 
 
     def _start_a_threadpool(self, ):
-        ttp = TpsThreadpoolExecutor()  # noqa
+        ttp = TpsThreadpoolExecutor(max_workers=self._max_works)  # noqa
         while True:
             func, args, kwargs = self.queue.get()  # 结束可以放None，然后这里判断，终止。或者joinable queue
             future = ttp.submit(func, *args, **kwargs)
             future.add_done_callback(self._queue_call_back)
 
+    # noinspection PyUnusedLocal
     def _queue_call_back(self, result):
         self.queue.task_done()
 
-    def __init__(self, tps=0, process_num=1):
+    def __init__(self, tps=0, max_workers=500, process_num=1):
         # if os.name == 'nt':
         #     raise EnvironmentError('不支持win')
         # self.queue = multiprocessing.Queue(1)
-        self.queue = multiprocessing.JoinableQueue(1)
+        self._max_works = max_workers
+        self.queue = multiprocessing.JoinableQueue(1)  # mu
         self.tps = tps
         self.process_num = process_num
         self.time_interval = 1 / tps if tps != 0 else 0
@@ -192,38 +192,35 @@ class TpsThreadpoolExecutorWithMultiProcess(nb_log.LoggerMixin):
         self.queue.join()
 
 
-
 # noinspection PyMethodOverriding
 class DistributedTpsThreadpoolExecutorWithMultiProcess(TpsThreadpoolExecutorWithMultiProcess):
     """ 自动开多进程 + 线程池的方式。 例如你有6台16核的压测机器 对 web服务端进行压测，要求每秒压测1万 tps，单进程远远无法做到，可以方便设置 process_num 为 100"""
-  
 
     def _start_a_threadpool(self):
-        ttp = DistributedTpsThreadpoolExecutor(tps=self.tps, pool_identify=self.pool_identify, redis_url=self.redis_url)  # noqa
+        ttp = DistributedTpsThreadpoolExecutor(tps=self.tps, max_workers=self._max_works, pool_identify=self.pool_identify, redis_url=self.redis_url)  # noqa
         while True:
             func, args, kwargs = self.queue.get()
             future = ttp.submit(func, *args, **kwargs)
             future.add_done_callback(self._queue_call_back)
 
     # noinspection PyMissingConstructor
-    def __init__(self, tps=0, process_num=1, pool_identify: str = None, redis_url: str = 'redis://:@127.0.0.1/0'):
+    def __init__(self, tps=0, max_workers=500, process_num=1, pool_identify: str = None, redis_url: str = 'redis://:@127.0.0.1/0'):
         self.pool_identify = pool_identify
         self.redis_url = redis_url
         self.queue = multiprocessing.JoinableQueue(1)
         self.tps = tps
         self.process_num = process_num
         self.time_interval = 1 / tps if tps != 0 else 0
+        self._max_workers = max_workers
         self.ttp = DistributedTpsThreadpoolExecutor(tps=self.tps, pool_identify=self.pool_identify, redis_url=self.redis_url)
-        for _ in range(process_num - 1):
-            multiprocessing.Process(target=self._start_a_threadpool,daemon=True ).start()
+        for _ in range(process_num ):
+            multiprocessing.Process(target=self._start_a_threadpool, daemon=True).start()
         atexit.register(self._at_exit)
 
     def submit(self, func, *args, **kwargs):
         self.queue.put((func, args, kwargs))
         if self.time_interval != 0:
             time.sleep(self.ttp.time_interval)
-
-
 
 
 def f1(x):
@@ -245,9 +242,9 @@ def request_baidu():
 if __name__ == '__main__':
     # tps_pool = TpsThreadpoolExecutor(tps=7)  # 这个是单机控频
     # tps_pool = DistributedTpsThreadpoolExecutor(tps=7, pool_identify='pool_for_use_print')  # 这个是redis分布式控频，不是基于频繁incr计数的，是基消费者数量统计的。
-    tps_pool = TpsThreadpoolExecutorWithMultiProcess(tps=4, process_num=6)  # 这个是redis分布式控频，不是基于incr计数的，是基于
+    tps_pool = TpsThreadpoolExecutorWithMultiProcess(tps=8, process_num=3)  # 这个是redis分布式控频，不是基于incr计数的，是基于
     # tps_pool = DistributedTpsThreadpoolExecutorWithMultiProcess(tps=4, pool_identify='pool_for_use_print', redis_url='redis://:372148@127.0.0.1/0', process_num=5)  # 这个是redis分布式控频，不是基于incr计数的，是基于
-    for i in range(20):
+    for i in range(100):
         tps_pool.submit(f1, i)
         tps_pool.submit(f2, i * 10)
         # tps_pool.submit(request_baidu)

@@ -187,16 +187,13 @@ class DistributedTpsThreadpoolExecutorWithMultiProcess(TpsThreadpoolExecutorWith
         self.process_num = process_num
         self.time_interval = 1 / tps if tps != 0 else 0
         self._max_workers = max_workers
-        self.ttp = DistributedTpsThreadpoolExecutor(tps=self.tps, pool_identify=self.pool_identify, redis_url=self.redis_url)
-        for _ in range(process_num - 1):
+        # self.ttp = DistributedTpsThreadpoolExecutor(tps=self.tps, pool_identify=self.pool_identify, redis_url=self.redis_url)
+        for _ in range(process_num ):
             multiprocessing.Process(target=self._start_a_threadpool, daemon=True).start()
         atexit.register(self._at_exit)
 
     def submit(self, func, *args, **kwargs):
         self.queue.put((func, args, kwargs))
-        if self.time_interval != 0:
-            time.sleep(self.ttp.time_interval)
-
 
 def f1(x):
     time.sleep(0.5)
