@@ -13,7 +13,7 @@ DistributedTpsThreadpoolExecutor 基于多台机器的分布式控频，需要�
 
 TpsThreadpoolExecutorWithMultiProcess  基于单机 多进程 + 智能线程池 的控频率，自动开启多进程。
 
-DistributedTpsThreadpoolExecutorWithMultiProcess 基于多机的，每台机器自动开多进程的控频率。
+DistributedTpsThreadpoolExecutorWithMultiProcess 基于多机的，每台机器自动开多进程 + 多线程 的控频率。
 
 例如你有1台 128核的电脑作为压测客户机， 需要对web服务产生每秒1万次请求，则选择 TpsThreadpoolExecutorWithMultiProcess 合适（不需要安装redis）。
 例如你有6台 16核的电脑作为压测客户机， 需要对web服务产生每秒1万次请求，则选择 DistributedTpsThreadpoolExecutorWithMultiProcess 合适。
