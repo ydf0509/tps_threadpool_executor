@@ -11,7 +11,7 @@ print(filepath)
 
 setup(
     name='tps_threadpool_executor',  #
-    version="1.2",
+    version="1.3",
     description=(
         'tps_threadpool_executor,it can run function specify times every second'
     ),
@@ -50,7 +50,7 @@ setup(
 python setup.py sdist upload -r pypi
 
 
-python setup.py sdist && twine upload dist/tps_threadpool_executor-1.2.tar.gz
+python setup.py sdist && twine upload dist/tps_threadpool_executor-1.3.tar.gz
 twine upload dist/*
 
 
