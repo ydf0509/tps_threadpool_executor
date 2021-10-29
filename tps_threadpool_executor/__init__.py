@@ -157,7 +157,7 @@ class TpsThreadpoolExecutorWithMultiProcess(nb_log.LoggerMixin):
         self.queue.put((func, args, kwargs))
 
     def shutdown(self, wait=True):
-        pass
+        self.queue.join()
 
     def _at_exit(self):
         self.logger.warning('触发atexit')
@@ -192,7 +192,7 @@ class DistributedTpsThreadpoolExecutorWithMultiProcess(TpsThreadpoolExecutorWith
 
 def f1(x):
     time.sleep(0.5)
-    print(os.getpid(), x)
+    print(os.getpid(),threading.get_ident(), x)
 
 
 def f2(x):
@@ -213,5 +213,5 @@ if __name__ == '__main__':
     # tps_pool = DistributedTpsThreadpoolExecutorWithMultiProcess(tps=4, pool_identify='pool_for_use_print', redis_url='redis://:372148@127.0.0.1/0', process_num=5)  # 这个是redis分布式控频，不是基于incr计数的，是基于
     for i in range(100):
         tps_pool.submit(f1, i)
-        tps_pool.submit(f2, i * 10)
+        # tps_pool.submit(f2, i * 10)
         # tps_pool.submit(request_baidu)

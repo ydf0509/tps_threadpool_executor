@@ -29,7 +29,7 @@ do_cmd('git pull')
 
 do_cmd('git diff')
 
-do_cmd('git add ../.')
+do_cmd('git add .')
 
 do_cmd('git commit -m commit')
 
@@ -39,6 +39,7 @@ do_cmd('git push origin')
 
 # print(subprocess.getstatusoutput('git push github'))
 print(f'spend_time {time.time() - t0}')
+print(time.strftime("%H:%M:%S"))
 time.sleep(100000)
 
 
